@@ -2,6 +2,8 @@
 Reference this terraform module to deploy a cost-optimized, configurable Minecraft server on AWS EC2.
 Optionally sets up a Route53 subdomain (e.g., mc.domain.com) and SSH access for maintenance.
 
+![running](readme/running.png)
+
 To reference this module from a `*.tf` file, specify the source
 ```
 source = "git::https://github.com/ruyda/tf-minecraft-server.git"
