@@ -29,11 +29,11 @@ resource "aws_subnet" "public_subnet" {
 resource "aws_security_group" "firewall" {
   name        = "${var.server_name}-firewall"
   description = "Control traffic in/out of Minecraft server EC2 instance"
-  vpc_id      = var.existing_vpc_id == null ? aws_subnet.server_vpc[0].id : var.existing_vpc_id
+  vpc_id      = var.existing_vpc_id == null ? aws_vpc.server_vpc[0].id : var.existing_vpc_id
 }
 
-resource "aws_vpc_security_group_ingress_rule" "allow_minecraft_connections" {
-  count             = var.ssh_keypair_name == null && length(var.player_ip_whitelist) == 0 ? 1 : 0
+resource "aws_vpc_security_group_ingress_rule" "any_minecraft_connections" {
+  count             = length(var.player_ip_whitelist) == 0 ? 1 : 0
   security_group_id = aws_security_group.firewall.id
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "tcp"
@@ -42,18 +42,18 @@ resource "aws_vpc_security_group_ingress_rule" "allow_minecraft_connections" {
   description       = "Permit all user connections from Minecraft"
 }
 
-resource "aws_vpc_security_group_ingress_rule" "allow_minecraft_connections" {
-  for_each          = var.ssh_keypair_name == null ? [] : toset(var.player_ip_whitelist)
+resource "aws_vpc_security_group_ingress_rule" "only_player_connections" {
+  for_each          = length(var.player_ip_whitelist) == 0 ? [] : toset(var.player_ip_whitelist)
   security_group_id = aws_security_group.firewall.id
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = each.value
   ip_protocol       = "tcp"
   from_port         = 25565
   to_port           = 25565
-  description       = "Permit all user connections from Minecraft"
+  description       = "Permit player IP connections from Minecraft"
 }
 
-resource "aws_vpc_security_group_ingress_rule" "allow_minecraft_connections" {
-  for_each          = toset(var.ssh_ip_whitelist)
+resource "aws_vpc_security_group_ingress_rule" "allow_ssh_connections" {
+  for_each          = var.ssh_keypair_name == null ? [] : toset(var.ssh_ip_whitelist)
   security_group_id = aws_security_group.firewall.id
   cidr_ipv4         = each.value
   ip_protocol       = "tcp"
@@ -71,7 +71,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_ipv4" {
 resource "aws_eip" "server_ip" {
   domain                    = "vpc"
   instance                  = aws_instance.server_instance.id
-  associate_with_private_ip = "10.0.0.12"
+  associate_with_private_ip = aws_instance.server_instance.private_ip
   depends_on                = [ aws_internet_gateway.gateway ]
 
   tags = {
@@ -84,4 +84,6 @@ resource "aws_route53_record" "subdomain_route" {
   zone_id = var.domain_zone_id
   name    = var.domain
   type    = "A"
+  ttl     = 60
+  records = [ aws_instance.server_instance.public_ip ]
 }
